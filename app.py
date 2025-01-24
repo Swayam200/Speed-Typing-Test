@@ -1,12 +1,13 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+import requests  # Added for API requests
 import random
 import database
 
 app = Flask(__name__)
 app.secret_key = 'shashisingh8434thissamplesecret'
 
-
-passages = [
+# Fallback passages in case API is unavailable
+fallback_passages = [
     "The quick brown fox jumps over the lazy dog.",
     "A journey of a thousand miles begins with a single step.",
     "To be or not to be, that is the question.",
@@ -14,11 +15,28 @@ passages = [
     "The only way to do great work is to love what you do."
 ]
 
+def fetch_random_passage():
+    """
+    Fetches a random quote from the Quotable API.
+    Returns a fallback passage if the API request fails.
+    """
+    try:
+        response = requests.get("https://api.quotable.io/random")
+        if response.status_code == 200:
+            quote_data = response.json()
+            return quote_data.get("content", random.choice(fallback_passages))
+        else:
+            return random.choice(fallback_passages)
+    except Exception as e:
+        # Log the exception if needed
+        print(f"Error fetching quote: {e}")
+        return random.choice(fallback_passages)
+
 @app.route('/')
 def home():
     varUser = request.args.get('varUser', 'Login')
-    random_passage = random.choice(passages)
-    return render_template('index.html', passage=[random_passage,varUser])
+    random_passage = fetch_random_passage()
+    return render_template('index.html', passage=[random_passage, varUser])
 
 @app.route('/submit', methods=['POST'])
 def submit():
@@ -45,7 +63,7 @@ def login():
 
         # print(newUser)
         if(newUser):
-            database.initialiseNewUser(username,password)
+            database.initialiseNewUser(username, password)
 
             if(not database.checkUniqueUser(username)):
                 session['username'] = username 
@@ -69,7 +87,7 @@ def sync():
     wpm = data.get('wpm')
     accuracy = data.get('accuracy')
 
-    database.uploadCurrentData(username,wpm,accuracy)
+    database.uploadCurrentData(username, wpm, accuracy)
 
     return jsonify({'status': 'success', 'message': 'Data synced successfully'}), 200
 
@@ -94,8 +112,7 @@ def history():
         return jsonify(response_data) 
     # print(username)
     sendingData = database.getHistory(username)
-    return render_template('user_history.html',username = username, allData = sendingData, enumerate = enumerate)
+    return render_template('user_history.html', username=username, allData=sendingData, enumerate=enumerate)
 
 if __name__ == '__main__':
     app.run(debug=True)
-
